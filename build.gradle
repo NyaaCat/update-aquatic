@@ -1,0 +1,23 @@
+plugins {
+    id 'java-library'
+}
+sourceCompatibility = 1.8
+targetCompatibility = 1.8
+
+// Version used for distribution. Different from maven repo
+group = "cat.nyaa"
+archivesBaseName = "UpdateAquatic-mc1.13.2"
+version = "0.0.0"
+
+repositories {
+    jcenter()
+    maven { name 'Spigot';      url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    maven { name 'Sonatype';    url 'https://oss.sonatype.org/content/groups/public' }
+}
+
+dependencies {
+    // spigot dependencies
+    compileOnly "org.spigotmc:spigot-api:1.13.2-R0.1-SNAPSHOT"
+    compileOnly files("patched_1.13.2.jar")
+}
+
