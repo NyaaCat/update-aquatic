@@ -1,7 +1,7 @@
 name: UpdateAquatic
 main: cat.nyaa.updaq.UpdateAquatic
 description: "Update Aquatic for existing worlds"
-version: 0.0.0
+version: 0.0.1
 authors: [RecursiveG]
 website: "https://github.com/NyaaCat/update-aquatic"
 api-version: 1.13
@@ -12,7 +12,7 @@ commands:
     aliases: updaq
     permission: updaq.command
     permission-message: "You do not have the required permission: <permission>"
-    usage: "/<command> <world_name>"
+    usage: "/<command> chunk [radius]"
 
 permissions:
   updaq.command:

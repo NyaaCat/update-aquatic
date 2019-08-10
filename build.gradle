@@ -7,7 +7,7 @@ targetCompatibility = 1.8
 // Version used for distribution. Different from maven repo
 group = "cat.nyaa"
 archivesBaseName = "UpdateAquatic-mc1.13.2"
-version = "0.0.0"
+version = "0.0.1"
 
 repositories {
     jcenter()
