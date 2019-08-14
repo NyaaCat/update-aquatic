@@ -21,6 +21,9 @@ import java.util.Set;
 import static org.bukkit.block.Biome.*;
 
 public class ChunkUpdateTask extends BukkitRunnable {
+    public static final long UPDATE_PERIOD = 7;
+    public static final long MAX_LOADED_CHUNK = 32*32*32;
+
     public static final Set<Biome> AQUATIC_BIOMES = new HashSet<Biome>() {{
         add(OCEAN);
         add(FROZEN_OCEAN);
@@ -39,6 +42,8 @@ public class ChunkUpdateTask extends BukkitRunnable {
         add(BEACH);
         add(SNOWY_BEACH);
         add(STONE_SHORE);
+
+        add(DESERT_LAKES);
     }};
 
     public final Plugin plugin;
@@ -53,6 +58,11 @@ public class ChunkUpdateTask extends BukkitRunnable {
     private int currentOffsetX = 0;
     private int currentOffsetZ = 0;
 
+    private long stat_total_chunk;
+    private long stat_complete_chunk = 0;
+    private long stat_skipped_chunk = 0;
+    private double stat_mavg_chunk_time_ms = 50.0;
+
     public ChunkUpdateTask(Plugin plugin, World templateWorld, World targetWorld, int startChunkX, int startChunkZ, int radius) {
         this.targetWorld = (CraftWorld) targetWorld;
         this.templateWorld = (CraftWorld) templateWorld;
@@ -60,7 +70,8 @@ public class ChunkUpdateTask extends BukkitRunnable {
         this.startChunkZ = startChunkZ;
         this.radius = radius;
         this.plugin = plugin;
-        runTaskTimer(plugin, 20L, 5L);
+        this.stat_total_chunk = (radius *2 -1)*(radius *2 -1);
+        runTaskTimer(plugin, 20L, UPDATE_PERIOD);
     }
 
     private boolean stepChunkCoord() {
@@ -99,15 +110,34 @@ public class ChunkUpdateTask extends BukkitRunnable {
 
     @Override
     public void run() {
+        // skip round if too many chunks loaded
+        if (targetWorld.getHandle().getChunkProvider().chunks.size() >= MAX_LOADED_CHUNK)
+            return;
+
         boolean inRange = stepChunkCoord();
         if (!inRange) {
+            plugin.getLogger().info("Complete.");
             cancel();
             return;
         }
+
         int x = startChunkX + currentOffsetX;
         int z = startChunkZ + currentOffsetZ;
-        if (targetWorld.isChunkGenerated(x, z)) {
+        if (targetWorld.isChunkGenerated(x, z)) { // only update generated trunks
+            Instant stat_time_start = Instant.now();
             updateChunk(x, z);
+            Instant stat_time_end = Instant.now();
+            double time_ms = Duration.between(stat_time_start, stat_time_end).toNanos();
+            time_ms = time_ms / 1000000D;
+            stat_mavg_chunk_time_ms = 0.1 * time_ms + 0.9 * stat_mavg_chunk_time_ms;
+            stat_complete_chunk ++;
+            double progress = (double) (stat_complete_chunk+stat_skipped_chunk) / (double) stat_total_chunk * 100.0;
+            plugin.getLogger().info(String.format("Process (%d,%d), %d/%d(%.2f%%) avg%.2fms/chunk",
+                    x, z,
+                    stat_complete_chunk+stat_skipped_chunk, stat_total_chunk, progress,
+                    stat_mavg_chunk_time_ms));
+        } else {
+            stat_skipped_chunk ++;
         }
     }
 
@@ -138,7 +168,9 @@ public class ChunkUpdateTask extends BukkitRunnable {
                     continue;
                 }
 
-                for (int y = 20; y < 64; y++) {
+                int max_y = target_biome == FROZEN_OCEAN || target_biome == DEEP_FROZEN_OCEAN ? 108 : 64;
+
+                for (int y = 20; y < max_y; y++) {
                     Block target_block = targetChunk.getBlock(col_x, y, col_z);
                     Block template_block = templateChunk.getBlock(col_x, y, col_z);
                     if (target_block.getType() == Material.WATER && template_block.getType() != Material.WATER) {
@@ -153,6 +185,9 @@ public class ChunkUpdateTask extends BukkitRunnable {
                 }
             }
         }
+
+        targetWorld.unloadChunkRequest(chunkX, chunkZ);
+        templateWorld.unloadChunkRequest(chunkX, chunkZ);
 
         Instant stat_time_end = Instant.now();
         Duration stat_time_duration = Duration.between(stat_time_start, stat_time_end);
