@@ -3,7 +3,6 @@ package cat.nyaa.updaq;
 import net.minecraft.server.v1_13_R2.BlockPosition;
 import net.minecraft.server.v1_13_R2.NBTTagCompound;
 import net.minecraft.server.v1_13_R2.TileEntity;
-import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.block.Biome;
@@ -22,7 +21,7 @@ import static org.bukkit.block.Biome.*;
 
 public class ChunkUpdateTask extends BukkitRunnable {
     public static final long UPDATE_PERIOD = 7;
-    public static final long MAX_LOADED_CHUNK = 32*32*32;
+    public static final long MAX_LOADED_CHUNK = 32 * 32 * 32;
 
     public static final Set<Biome> AQUATIC_BIOMES = new HashSet<Biome>() {{
         add(OCEAN);
@@ -52,6 +51,9 @@ public class ChunkUpdateTask extends BukkitRunnable {
     public final int startChunkX;
     public final int startChunkZ;
     public final int radius;
+    public final int levelSeaSurface;
+    public final int levelDeepestSea;
+    public final int levelHighestIceberg;
 
     private boolean firstChunkVisited = false;
     private int currentRadius = 0;
@@ -64,13 +66,19 @@ public class ChunkUpdateTask extends BukkitRunnable {
     private double stat_mavg_chunk_time_ms = 50.0;
 
     public ChunkUpdateTask(Plugin plugin, World templateWorld, World targetWorld, int startChunkX, int startChunkZ, int radius) {
+        if (targetWorld.getSeaLevel() != templateWorld.getSeaLevel())
+            throw new IllegalArgumentException("Different sea level");
         this.targetWorld = (CraftWorld) targetWorld;
         this.templateWorld = (CraftWorld) templateWorld;
         this.startChunkX = startChunkX;
         this.startChunkZ = startChunkZ;
         this.radius = radius;
         this.plugin = plugin;
-        this.stat_total_chunk = (radius *2 -1)*(radius *2 -1);
+        this.stat_total_chunk = (radius * 2 - 1) * (radius * 2 - 1);
+        this.levelSeaSurface = templateWorld.getSeaLevel() - 1;
+        this.levelDeepestSea = Math.max(levelSeaSurface - 42, 0);
+        this.levelHighestIceberg = Math.min(levelSeaSurface + 42, 255);
+
         runTaskTimer(plugin, 20L, UPDATE_PERIOD);
     }
 
@@ -130,14 +138,14 @@ public class ChunkUpdateTask extends BukkitRunnable {
             double time_ms = Duration.between(stat_time_start, stat_time_end).toNanos();
             time_ms = time_ms / 1000000D;
             stat_mavg_chunk_time_ms = 0.1 * time_ms + 0.9 * stat_mavg_chunk_time_ms;
-            stat_complete_chunk ++;
-            double progress = (double) (stat_complete_chunk+stat_skipped_chunk) / (double) stat_total_chunk * 100.0;
+            stat_complete_chunk++;
+            double progress = (double) (stat_complete_chunk + stat_skipped_chunk) / (double) stat_total_chunk * 100.0;
             plugin.getLogger().info(String.format("Process (%d,%d), %d/%d(%.2f%%) avg%.2fms/chunk",
                     x, z,
-                    stat_complete_chunk+stat_skipped_chunk, stat_total_chunk, progress,
+                    stat_complete_chunk + stat_skipped_chunk, stat_total_chunk, progress,
                     stat_mavg_chunk_time_ms));
         } else {
-            stat_skipped_chunk ++;
+            stat_skipped_chunk++;
         }
     }
 
@@ -168,14 +176,29 @@ public class ChunkUpdateTask extends BukkitRunnable {
                     continue;
                 }
 
-                int max_y = target_biome == FROZEN_OCEAN || target_biome == DEEP_FROZEN_OCEAN ? 108 : 64;
-
-                for (int y = 20; y < max_y; y++) {
+                // update in-water blocks
+                for (int y = 20; y <= levelSeaSurface; y++) {
                     Block target_block = targetChunk.getBlock(col_x, y, col_z);
                     Block template_block = templateChunk.getBlock(col_x, y, col_z);
                     if (target_block.getType() == Material.WATER && template_block.getType() != Material.WATER) {
                         copyBlock(template_block, target_block);
                         stat_block_changed++;
+                    }
+                }
+
+                // update above-sealevel blocks for icebergs
+                if (target_biome == FROZEN_OCEAN || target_biome == DEEP_FROZEN_OCEAN) {
+                    for (int y = levelSeaSurface + 1; y < levelHighestIceberg; y++) {
+                        Block target_block = targetChunk.getBlock(col_x, y, col_z);
+                        Block template_block = templateChunk.getBlock(col_x, y, col_z);
+                        if (target_block.getType() == Material.AIR) {
+                            if (template_block.getType() != Material.AIR) {
+                                copyBlock(template_block, target_block);
+                                stat_block_changed++;
+                            }
+                        } else {
+                            break;
+                        }
                     }
                 }
 
