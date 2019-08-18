@@ -187,7 +187,7 @@ public class ChunkUpdateTask extends BukkitRunnable {
                 }
 
                 // update above-sealevel blocks for icebergs
-                if (target_biome == FROZEN_OCEAN || target_biome == DEEP_FROZEN_OCEAN) {
+                if (template_biome == FROZEN_OCEAN || template_biome == DEEP_FROZEN_OCEAN) {
                     for (int y = levelSeaSurface + 1; y < levelHighestIceberg; y++) {
                         Block target_block = targetChunk.getBlock(col_x, y, col_z);
                         Block template_block = templateChunk.getBlock(col_x, y, col_z);

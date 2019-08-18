@@ -1,7 +1,7 @@
 name: UpdateAquatic
 main: cat.nyaa.updaq.UpdateAquatic
 description: "Update Aquatic for existing worlds"
-version: 0.0.3
+version: 0.0.4
 authors: [RecursiveG]
 website: "https://github.com/NyaaCat/update-aquatic"
 api-version: 1.13
